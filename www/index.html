@@ -57,7 +57,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rend
 .btn:hover,.btn:focus,.btn:active{background:rgba(0,229,255,.12);outline:none}
 .btn.share{border-color:var(--neon-yellow);color:var(--neon-yellow);text-shadow:0 0 4px var(--neon-yellow)}
 .btn.share:hover,.btn.share:focus{background:rgba(255,229,61,.12)}
-#mute-btn{position:absolute;top:env(safe-area-inset-top,8px);left:50%;transform:translate(-130px,30px);background:transparent;border:1px solid var(--retro-fg);color:var(--retro-fg);width:32px;height:32px;font-size:10px;cursor:pointer;opacity:.6;pointer-events:auto;display:flex;align-items:center;justify-content:center}
+#mute-btn{position:absolute;bottom:calc(env(safe-area-inset-bottom,4px) + 18px);left:8px;background:transparent;border:1px solid var(--retro-fg);color:var(--retro-fg);width:36px;height:36px;font-size:11px;cursor:pointer;opacity:.5;pointer-events:auto;display:flex;align-items:center;justify-content:center}
 #mute-btn:hover{opacity:1}
 #footer{position:fixed;bottom:env(safe-area-inset-bottom,4px);width:100%;text-align:center;font-size:6px;opacity:.4;color:var(--retro-fg);z-index:10;pointer-events:auto}
 #footer a{color:inherit;margin:0 6px;text-decoration:none}
@@ -298,18 +298,21 @@ const W = 480, H = 800;
 const PLAYFIELD_BOTTOM = H - 90;
 const FLIPPER_LEN = 105;     // 22% of 480
 const FLIPPER_THICK = 6;
-const FLIPPER_REST_ANGLE = 0.42;   // ~24° pointing-up-and-out
-const FLIPPER_ACTIVE_ANGLE = -0.42;
+// Angle measured from x-axis. tip = pivot + (sideMul*cos(θ), -sin(θ)) * length.
+// Larger θ = more vertical (tip rises). Both flippers share same θ (mirror via sideMul on x).
+const FLIPPER_REST_ANGLE = 0.45;     // ~26°: tip slightly up + toward center
+const FLIPPER_ACTIVE_ANGLE = 1.10;   // ~63°: tip mostly vertical (kick)
 const FLIPPER_RETURN_DEFAULT_MS = 200;
 const BALL_SAVER_MS = 7000;
 const TABLE_TIMER_DEFAULT = 0; // 0 = no timer
 const TABLE_TIMER_HURRYUP = 60000;
 const SPAWN_X = W * 0.92, SPAWN_Y = 80;
 
+// Both flippers store the SAME positive angle. Mirror is purely in x via sideMul.
 const flipperL = {
   pivot: { x: W * 0.30, y: PLAYFIELD_BOTTOM - 10 },
-  side: 'L',
-  angle: FLIPPER_REST_ANGLE, // signed
+  side: 'L', sideMul: 1,
+  angle: FLIPPER_REST_ANGLE,
   restAngle: FLIPPER_REST_ANGLE,
   activeAngle: FLIPPER_ACTIVE_ANGLE,
   pressed: false,
@@ -318,10 +321,10 @@ const flipperL = {
 };
 const flipperR = {
   pivot: { x: W * 0.70, y: PLAYFIELD_BOTTOM - 10 },
-  side: 'R',
-  angle: -FLIPPER_REST_ANGLE,
-  restAngle: -FLIPPER_REST_ANGLE,
-  activeAngle: -FLIPPER_ACTIVE_ANGLE,
+  side: 'R', sideMul: -1,
+  angle: FLIPPER_REST_ANGLE,
+  restAngle: FLIPPER_REST_ANGLE,
+  activeAngle: FLIPPER_ACTIVE_ANGLE,
   pressed: false,
   pressedAtMs: 0,
   releasedAtMs: 0,
@@ -489,8 +492,8 @@ function endTable() {
   if (t.chainCount > r.maxChain) r.maxChain = t.chainCount;
   emit('table_end', { table_score: t.score, table_duration_ms: Date.now() - t.startMs, max_chain: r.maxChain, balls_used: t.ballsSpawned });
   sfx.tableEnd();
-  // Check run end conditions
-  if (r.tableIndex >= 5 || r.drainsTotal >= 3) {
+  // Run end: ONLY when 5 tables complete. drains tracked but not run-ending.
+  if (r.tableIndex >= 5) {
     setTimeout(() => endRun(), 800);
   } else {
     setTimeout(() => showMutatorPick(), 1000);
@@ -605,7 +608,7 @@ let accumulator = 0;
 let lastFrame = performance.now();
 
 function flipperTipPos(f) {
-  return { x: f.pivot.x + Math.cos(f.angle) * FLIPPER_LEN * (f.side === 'L' ? 1 : -1),
+  return { x: f.pivot.x + f.sideMul * Math.cos(f.angle) * FLIPPER_LEN,
            y: f.pivot.y - Math.sin(f.angle) * FLIPPER_LEN };
 }
 function flipperEndpoints(f) {
@@ -626,19 +629,19 @@ function updateFlipper(f, dt, returnMs) {
     f.angle = f.activeAngle + (f.restAngle - f.activeAngle) * t;
   }
 }
+// Signed angular velocity (dθ/dt). Positive = increasing θ = tip rising (kick direction).
 function flipperAngularVelocity(f, returnMs) {
-  // approximate: while pressed and within first 80ms, high angular velocity; else 0
   if (f.pressed) {
     const elapsed = Date.now() - f.pressedAtMs;
     if (elapsed < 80) {
-      const totalAngle = Math.abs(f.activeAngle - f.restAngle);
-      return totalAngle / 0.080; // rad/s
+      // angle goes rest → active (active > rest), so dθ/dt > 0
+      return (f.activeAngle - f.restAngle) / 0.080;
     }
   } else {
     const elapsed = Date.now() - f.releasedAtMs;
     if (elapsed < returnMs) {
-      const totalAngle = Math.abs(f.activeAngle - f.restAngle);
-      return -(totalAngle / (returnMs / 1000));
+      // angle eases back active → rest, so dθ/dt < 0
+      return (f.restAngle - f.activeAngle) / (returnMs / 1000);
     }
   }
   return 0;
@@ -711,8 +714,8 @@ function tick(dt) {
         sfx.drain();
         for (let k=0; k<8; k++) spawnParticle(b.x, drainLine, '#FF3B30');
         updateBallsRow();
-        // Spawn next ball if any remaining
-        if (t.ballsSpawned < t.ballsThisTableMax && r.drainsTotal < 3) {
+        // Spawn next ball if any remaining for THIS table (3 per table); drains tracked for stats but don't end run prematurely
+        if (t.ballsSpawned < t.ballsThisTableMax) {
           setTimeout(() => { if (!t.over) spawnBall(true); }, 600);
         } else {
           // Check if all balls are gone
@@ -795,6 +798,7 @@ function tick(dt) {
         if (vDotN < 0) { b.vx -= 1.7 * vDotN * nx; b.vy -= 1.7 * vDotN * ny; }
         if (tg.hitFlash <= 0) {
           tg.hitFlash = 100;
+          t.targetHitCount = (t.targetHitCount || 0) + 1;
           if (!tg.lit) {
             tg.lit = true;
             const scoreGain = 250 * tg.bonus * t.combo;
@@ -802,21 +806,16 @@ function tick(dt) {
             sfx.target();
             t.popups.push({ x: tg.x, y: tg.y - 20, text: '+' + scoreGain, ts: Date.now(), life: 1000 });
             emit('target_hit', { target_id: t.targets.indexOf(tg), score_delta: scoreGain, lit_state_change: true });
-            // All lit?
-            if (t.targets.every(tgt => tgt.lit)) {
-              // Mode trigger: multiball or hurryup
-              if (!t.activeMode && !r.mutatorsActive.includes('hurryup')) {
-                enterMode('multiball');
-              } else if (!t.activeMode) {
-                enterMode('hurryup');
-              }
-              // Reset all lit (they'll re-light over time)
-              setTimeout(() => { for (const x of t.targets) x.lit = false; }, 400);
-            }
           } else {
             // Already lit - small score
             t.score += 20 * t.combo;
             emit('target_hit', { target_id: t.targets.indexOf(tg), score_delta: 20 * t.combo, lit_state_change: false });
+          }
+          // Mode trigger: every 5 target hits (more accessible than 'all lit')
+          if (t.targetHitCount % 5 === 0 && !t.activeMode) {
+            const modeChoice = (Math.random() < 0.6 && !r.mutatorsActive.includes('hurryup')) ? 'multiball' : 'hurryup';
+            enterMode(modeChoice);
+            for (const x of t.targets) x.lit = false;
           }
           for (let k=0; k<8; k++) spawnParticle(tg.x, tg.y, '#FFE53D');
           updateScore();
@@ -836,37 +835,34 @@ function tick(dt) {
         // Resolve overlap
         b.x = cp.x + nx * minDist;
         b.y = cp.y + ny * minDist;
-        // Compute contact point velocity from flipper rotation
+        // Contact-point velocity from flipper rotation.
+        // Position parameterized as: pos(θ, k) = pivot + (sideMul*cos(θ), -sin(θ)) * k
+        // where k = distance along flipper from pivot to contact point.
+        // d/dt of pos = (-sideMul*sin(θ)*k*ω, -cos(θ)*k*ω)
         const omega = flipperAngularVelocity(f, t.flipperReturnMs);
-        // Distance from pivot to contact point
-        const rx = cp.x - f.pivot.x;
-        const ry = cp.y - f.pivot.y;
-        // Contact velocity = omega × radius (perpendicular to radius)
-        const cvx = -omega * ry; // perpendicular
-        const cvy = omega * rx;
+        const k = Math.sqrt((cp.x - f.pivot.x)**2 + (cp.y - f.pivot.y)**2);
+        const cvx = -f.sideMul * Math.sin(f.angle) * k * omega;
+        const cvy = -Math.cos(f.angle) * k * omega;
         // Relative velocity
         const rvx = b.vx - cvx;
         const rvy = b.vy - cvy;
         const vDotN = rvx*nx + rvy*ny;
         if (vDotN < 0) {
-          // Reflect with restitution
           const restitution = 0.85;
           b.vx -= (1 + restitution) * vDotN * nx;
           b.vy -= (1 + restitution) * vDotN * ny;
-          // Add a portion of contact velocity (kick force)
-          if (f.pressed && (Date.now() - f.pressedAtMs) < 80) {
-            // Strong kick during press
-            const kickScale = 0.7;
+          // Kick: add full contact velocity if flipper is actively pressing
+          if (f.pressed && (Date.now() - f.pressedAtMs) < 80 && omega > 0) {
+            const kickScale = 0.85;
             b.vx += cvx * kickScale;
             b.vy += cvy * kickScale;
-            // Ensure minimum kick velocity
-            const minSpeed = 6.5;
+            // Ensure minimum kick speed (per BENCHMARK Feature 1, target ~16-18 px/tick @ 60Hz)
+            const minSpeed = 7.5;
             const newSpeed = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
             if (newSpeed < minSpeed) {
-              b.vx = (b.vx / Math.max(0.01, newSpeed)) * minSpeed;
-              b.vy = (b.vy / Math.max(0.01, newSpeed)) * minSpeed;
+              const sc = minSpeed / Math.max(0.01, newSpeed);
+              b.vx *= sc; b.vy *= sc;
             }
-            // SFX
             if (!f.lastKickAt || Date.now() - f.lastKickAt > 100) {
               f.lastKickAt = Date.now();
               sfx.flipper();
@@ -1339,6 +1335,21 @@ window.fireBall = function(side = 'L') {
 };
 window.dismissSplash = function() {
   const s = document.getElementById('splash'); if (s && !s.classList.contains('fade')) s.click();
+};
+window._flipperGeom = function() {
+  function geom(f) {
+    const tip = flipperTipPos(f);
+    return {
+      pivot: { x: Math.round(f.pivot.x), y: Math.round(f.pivot.y) },
+      tip: { x: Math.round(tip.x), y: Math.round(tip.y) },
+      angle: f.angle,
+      // tip must be ABOVE pivot in canvas (y smaller)
+      tipUp: tip.y < f.pivot.y - 10,
+      // tip must be toward center (sideMul direction)
+      tipToCenter: f.side === 'L' ? tip.x > f.pivot.x : tip.x < f.pivot.x,
+    };
+  }
+  return { L: geom(flipperL), R: geom(flipperR) };
 };
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
