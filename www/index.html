@@ -72,6 +72,13 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rend
 @keyframes blink{50%{opacity:.3}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media(max-height:600px){#splash h1{font-size:36px}#splash .tagline{font-size:7px}}
+@media(max-width:360px){
+  #score{font-size:11px}
+  #daily-stamp{font-size:6px;padding:2px 4px;line-height:1.3}
+  #daily-stamp .mut{margin-top:1px}
+  #mutator-stack .mut-icon{width:16px;height:16px;font-size:8px}
+  #balls-row .ball{width:8px;height:8px}
+}
 </style>
 </head>
 <body>
@@ -1260,10 +1267,14 @@ document.addEventListener('keyup', e => {
 /* ============================================================
  * UI buttons + suspend/resume
  * ============================================================ */
-document.getElementById('mute-btn').addEventListener('click', () => {
+function handleMuteToggle(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
   setMute(!SAVE.mute);
-});
-if (SAVE.mute) document.getElementById('mute-btn').textContent = '🔇';
+}
+const muteBtn = document.getElementById('mute-btn');
+muteBtn.addEventListener('click', handleMuteToggle);
+muteBtn.addEventListener('touchend', handleMuteToggle, { passive: false });
+if (SAVE.mute) muteBtn.textContent = '🔇';
 document.getElementById('rs-restart').addEventListener('click', () => { sfx.uiPress(); startRun(); });
 
 let lastVis = Date.now();
