@@ -1,0 +1,32 @@
+{
+  "project": "TILT",
+  "generated": "2026-05-02",
+  "strategy_inputs": { "type": "game", "monetization": "F2P-cosmetic", "scale": "solo" },
+  "activation_source": "~/.claude/skills/game-build/COMPANY_STRUCTURE.md §1 + §6 (Solo Tier)",
+  "active_roles": [
+    { "id": "#3",  "name": "Strategist",          "deep_spec": "roles/03-strategist.md",     "owns": "STRATEGY.md, PIVOT.md (Mode B if needed)" },
+    { "id": "#1",  "name": "Orchestrator",        "deep_spec": "roles/01-orchestrator.md",   "owns": "Phase gate enforcement, RoleActivation.json" },
+    { "id": "#2",  "name": "Architect",           "deep_spec": "roles/02-architect.md",      "owns": "ARCHITECTURE.md, ADRs" },
+    { "id": "#7",  "name": "Visual Designer",     "deep_spec": "roles/07-visual-designer.md","owns": "STYLE_GUIDE.md (synthwave + 8-bit fusion, vertical mobile pinball)" },
+    { "id": "#G1", "name": "Game Designer",       "deep_spec": "roles/_BUNDLE.md#G1",        "owns": "GDD.md (flipper physics, daily seed, roguelite mutators)" },
+    { "id": "#11", "name": "Frontend Engineer",   "deep_spec": "roles/11-frontend-eng.md",   "owns": "Implementation (Canvas + custom 2D physics, vanilla JS)" },
+    { "id": "#19", "name": "QA Functional Lead",  "deep_spec": "roles/19-qa-functional.md",  "owns": "bugs.json, persona harness verdicts, real-input testing (NO .click() shortcuts)" },
+    { "id": "#20", "name": "UX Researcher",       "deep_spec": "roles/20-ux-researcher.md",  "owns": "engagement.json, Layer B verdict (5-sec-test PASS, hype-fire, hook activation)" },
+    { "id": "#25", "name": "Release Manager",     "deep_spec": "roles/25-release-manager.md","owns": "Tags, deploys, ship-gate execution" }
+  ],
+  "dormant_roles_count": 101,
+  "solo_tier_rule": "EXACTLY 9 active. Adding a 10th = block.",
+  "failure_mode_ledger_check": [
+    "(1) Flipper kick power benchmark APPLIES — must hit 1500+ px/s per Williams T2 baseline (was 696 in cyber-pinball P0)",
+    "(2) Response latency APPLIES — must be ≤16.6ms input-to-flipper-state-change (was 117ms in cyber-pinball P0)",
+    "(3) Ball-saver-on-spawn APPLIES — first ball must spawn into flipper-reachable zone, not into drain. Auto-launch from shooter lane resolves; spawn-to-flipper-arc within 1 physics second mandatory",
+    "(4) AI license drift NOT applicable (no AI gen)",
+    "(5) Deploy config gotcha APPLIES — vercel.json cleanUrls + outputDirectory cross-check mandatory (cyber-pinball had cleanUrls strip privacy.html)",
+    "(6) User-as-tester FAILURE — never end ship turn with 'test on device'. QA dispatch BEFORE 'done' message. THIS IS THE MAIN INCIDENT TO PREVENT.",
+    "(7) Layer A green but Layer B unscored APPLIES — both must run before ship",
+    "(8) YELLOW shipped APPLIES — convert to GREEN or RED, never YELLOW",
+    "(9) Hint-stacking in response to 'amacı ne anlamadım' WRONG (DROP failure pattern) — fix mechanic clarity at visual layer, not text overlays. Pinball silhouette = self-evident; if ambiguity occurs, fix the SHAPE/MOTION, not the COPY"
+  ],
+  "phase_advance_unlocked": true,
+  "next_phase": "Phase 0 — CONCEPT.md (autonomous, derived from STRATEGY.md)"
+}

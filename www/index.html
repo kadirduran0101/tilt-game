@@ -1,0 +1,1348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#14141E">
+<title>TILT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --neon-magenta:#FF2F92;--neon-cyan:#00E5FF;--neon-yellow:#FFE53D;
+  --retro-fg:#C8C8DA;--retro-bg:#14141E;
+  --combo-red:#FF3B30;--mode-green:#36F5A4;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--retro-bg);font-family:'Press Start 2P',monospace;color:var(--retro-fg);touch-action:none}
+#game{position:fixed;inset:0;background:var(--retro-bg)}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+#scanlines{position:fixed;inset:0;pointer-events:none;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.08) 0,rgba(0,0,0,.08) 1px,transparent 1px,transparent 2px);z-index:5}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;font-size:10px}
+#score{position:absolute;top:env(safe-area-inset-top,8px);left:8px;color:var(--neon-yellow);text-shadow:0 0 4px var(--neon-yellow);font-size:14px}
+#daily-stamp{position:absolute;top:env(safe-area-inset-top,8px);left:50%;transform:translateX(-50%);color:var(--neon-yellow);font-size:8px;background:rgba(20,20,30,.7);padding:4px 8px;border:1px solid rgba(255,229,61,.5);text-align:center;line-height:1.4}
+#daily-stamp .mut{color:var(--mode-green);text-shadow:0 0 3px var(--mode-green);display:block;margin-top:2px}
+#balls-row{position:absolute;top:calc(env(safe-area-inset-top,8px) + 24px);right:8px;display:flex;gap:4px}
+#balls-row .ball{width:10px;height:10px;border-radius:50%;background:var(--retro-fg)}
+#balls-row .ball.lost{opacity:.25}
+#mutator-stack{position:absolute;top:env(safe-area-inset-top,8px);right:8px;display:flex;gap:6px;align-items:center}
+#mutator-stack .mut-icon{width:20px;height:20px;border:1.5px solid var(--mode-green);background:rgba(54,245,164,.15);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--mode-green)}
+#combo{position:absolute;top:62px;left:50%;transform:translateX(-50%);color:var(--neon-magenta);text-shadow:0 0 8px var(--neon-magenta);opacity:0;transition:opacity 100ms;font-size:14px;text-align:center}
+#combo.show{opacity:1}
+#combo.huge{font-size:28px;color:var(--neon-yellow);text-shadow:0 0 16px var(--neon-yellow)}
+#mode-banner{position:absolute;top:90px;left:50%;transform:translateX(-50%);background:rgba(54,245,164,.9);color:var(--retro-bg);padding:6px 14px;font-size:10px;opacity:0;transition:opacity 200ms}
+#mode-banner.show{opacity:1}
+#ball-saver{position:absolute;top:90px;left:50%;transform:translateX(-50%);background:rgba(0,229,255,.9);color:var(--retro-bg);padding:4px 10px;font-size:8px;opacity:0;transition:opacity 200ms}
+#ball-saver.show{opacity:1}
+#share-prompt{position:absolute;top:120px;left:50%;transform:translateX(-50%);background:rgba(20,20,30,.92);border:2px solid var(--neon-yellow);padding:8px 14px;color:var(--neon-yellow);text-shadow:0 0 4px var(--neon-yellow);font-size:9px;opacity:0;pointer-events:auto;cursor:pointer;transition:opacity 200ms;min-height:44px;display:flex;align-items:center;line-height:1.4}
+#share-prompt.show{opacity:1}
+#mut-pick{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,20,30,.94);pointer-events:auto;flex-direction:column;gap:16px;padding:16px}
+#mut-pick.show{display:flex}
+#mut-pick h3{color:var(--mode-green);text-shadow:0 0 6px var(--mode-green);font-size:12px;text-align:center;line-height:1.6}
+#mut-pick .cards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.mut-card{width:90px;min-height:130px;border:2px solid var(--neon-cyan);background:rgba(0,229,255,.06);padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;cursor:pointer;text-align:center;transition:transform 100ms,background 100ms}
+.mut-card:hover,.mut-card:focus,.mut-card:active{background:rgba(0,229,255,.18);transform:scale(1.04);outline:none}
+.mut-card .icon{font-size:24px;color:var(--neon-cyan);text-shadow:0 0 6px var(--neon-cyan);line-height:1}
+.mut-card .name{font-size:8px;color:var(--neon-cyan);line-height:1.4}
+.mut-card .desc{font-size:6px;color:var(--retro-fg);line-height:1.6;opacity:.8}
+#run-summary{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,20,30,.94);pointer-events:auto;flex-direction:column;gap:18px;padding:16px}
+#run-summary.show{display:flex}
+#run-summary h2{color:var(--neon-cyan);text-shadow:0 0 8px var(--neon-cyan);font-size:18px}
+#run-summary .stats{font-size:9px;color:var(--retro-fg);line-height:2.2;text-align:center}
+#run-summary .stats .v{color:var(--neon-yellow)}
+#run-summary .pb-line{color:var(--mode-green);text-shadow:0 0 4px var(--mode-green);font-size:10px}
+#run-summary .alltime-pb{color:var(--neon-yellow);text-shadow:0 0 6px var(--neon-yellow);font-size:11px}
+.btn{background:transparent;border:2px solid var(--neon-cyan);color:var(--neon-cyan);font-family:inherit;font-size:10px;padding:12px 18px;cursor:pointer;text-shadow:0 0 4px var(--neon-cyan);min-width:140px;min-height:44px}
+.btn:hover,.btn:focus,.btn:active{background:rgba(0,229,255,.12);outline:none}
+.btn.share{border-color:var(--neon-yellow);color:var(--neon-yellow);text-shadow:0 0 4px var(--neon-yellow)}
+.btn.share:hover,.btn.share:focus{background:rgba(255,229,61,.12)}
+#mute-btn{position:absolute;top:env(safe-area-inset-top,8px);left:50%;transform:translate(-130px,30px);background:transparent;border:1px solid var(--retro-fg);color:var(--retro-fg);width:32px;height:32px;font-size:10px;cursor:pointer;opacity:.6;pointer-events:auto;display:flex;align-items:center;justify-content:center}
+#mute-btn:hover{opacity:1}
+#footer{position:fixed;bottom:env(safe-area-inset-bottom,4px);width:100%;text-align:center;font-size:6px;opacity:.4;color:var(--retro-fg);z-index:10;pointer-events:auto}
+#footer a{color:inherit;margin:0 6px;text-decoration:none}
+#footer a:hover{color:var(--neon-cyan)}
+#splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--retro-bg);z-index:100;flex-direction:column;gap:18px;padding:20px;transition:opacity 600ms}
+#splash.fade{opacity:0;pointer-events:none}
+#splash h1{color:var(--neon-magenta);text-shadow:0 0 18px var(--neon-magenta);font-size:48px;letter-spacing:8px}
+#splash .tagline{color:var(--retro-fg);font-size:8px;opacity:.7;line-height:1.8;text-align:center;max-width:280px}
+#splash .seed-info{color:var(--neon-yellow);font-size:9px;text-shadow:0 0 4px var(--neon-yellow);text-align:center;line-height:1.6}
+#splash .seed-info .mut-line{color:var(--mode-green);text-shadow:0 0 4px var(--mode-green);margin-top:4px;display:block}
+#splash .start-cue{color:var(--neon-cyan);font-size:9px;animation:blink 1s infinite;margin-top:8px;text-shadow:0 0 4px var(--neon-cyan)}
+@keyframes blink{50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-height:600px){#splash h1{font-size:36px}#splash .tagline{font-size:7px}}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv"></canvas>
+  <div id="scanlines" aria-hidden="true"></div>
+  <div id="hud">
+    <div id="score">000000</div>
+    <div id="daily-stamp">DAILY <span id="seed-date">--</span><span class="mut" id="seed-mut"></span></div>
+    <div id="mutator-stack" aria-label="active mutators"></div>
+    <div id="balls-row" aria-label="balls remaining"></div>
+    <div id="combo" aria-live="polite">1x</div>
+    <div id="mode-banner" aria-live="assertive"></div>
+    <div id="ball-saver">SAVED</div>
+    <div id="share-prompt" role="button" tabindex="0">📸 SHARE 50x</div>
+    <button id="mute-btn" aria-label="mute">🔊</button>
+    <div id="mut-pick" role="dialog" aria-label="mutator pick">
+      <h3>PICK A MUTATOR<br>FOR NEXT TABLE</h3>
+      <div class="cards" id="mut-cards"></div>
+    </div>
+    <div id="run-summary" role="dialog" aria-label="run end">
+      <h2 id="rs-title">RUN COMPLETE</h2>
+      <div class="stats">
+        <div>RUN SCORE <span class="v" id="rs-score">0</span></div>
+        <div>TABLES <span class="v" id="rs-tables">0</span></div>
+        <div>MAX CHAIN <span class="v" id="rs-chain">0</span></div>
+        <div>MUTATORS <span class="v" id="rs-muts">0</span></div>
+        <div id="rs-daily-pb-line" class="pb-line" style="display:none">★ NEW DAILY PB</div>
+        <div id="rs-alltime-pb-line" class="alltime-pb" style="display:none">★★ NEW ALL-TIME PB ★★</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button id="rs-share" class="btn share">SHARE</button>
+        <button id="rs-restart" class="btn">PLAY AGAIN</button>
+      </div>
+    </div>
+  </div>
+  <div id="splash">
+    <h1>TILT</h1>
+    <div class="seed-info">DAILY SEED<br><span id="splash-seed-date">--</span><span class="mut-line">MUTATOR OF DAY: <span id="splash-seed-mut">--</span></span></div>
+    <div class="tagline">tap left/right to flip · keep ball alive · chain combos<br>each run, pick a mutator after every table</div>
+    <div class="start-cue">tap anywhere to start</div>
+  </div>
+  <div id="footer"><a href="./privacy.html">privacy</a> · <a href="./terms.html">terms</a></div>
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+ * CRASH REPORTER (Phase 7)
+ * ============================================================ */
+const _crashLog = [];
+window.onerror = (msg, src, line, col, err) => {
+  _crashLog.push({ ts: Date.now(), msg: String(msg).slice(0,120), stack: (err?.stack||'').split('\n').slice(0,5).join('\n') });
+  try { emit('js_error', { msg: String(msg).slice(0,120) }); } catch {}
+  return false;
+};
+window.addEventListener('unhandledrejection', e => {
+  _crashLog.push({ ts: Date.now(), msg: 'unhandled: ' + String(e.reason).slice(0,120) });
+  try { emit('js_error', { msg: 'unhandled: ' + String(e.reason).slice(0,120) }); } catch {}
+});
+
+/* ============================================================
+ * TELEMETRY (Phase 0.5 schema, ringbuffer 200)
+ * ============================================================ */
+const SID = (crypto.randomUUID && crypto.randomUUID()) || ('s'+Math.random().toString(36).slice(2));
+const BUILD = 'v1.0.0';
+const SESSION_START = Date.now();
+const _tel = [];
+function emit(ev, extras={}) {
+  const evt = { ev, ts: Date.now(), sid: SID, build: BUILD, device: navigator.userAgent.slice(0,30), locale: navigator.language, schema_v: '1.0', ...extras };
+  _tel.push(evt);
+  if (_tel.length > 200) _tel.shift();
+}
+window.__telemetry = () => _tel.slice();
+
+/* ============================================================
+ * PERSIST (versioned localStorage)
+ * ============================================================ */
+const SAVE_VERSION = 1;
+function loadSave() {
+  try {
+    const raw = localStorage.getItem('tilt:save');
+    if (!raw) return defaults();
+    const blob = JSON.parse(raw);
+    if (blob.v !== SAVE_VERSION) return defaults();
+    return Object.assign(defaults(), blob.data);
+  } catch { return defaults(); }
+}
+function saveNow(d) {
+  try { localStorage.setItem('tilt:save', JSON.stringify({ v: SAVE_VERSION, ts: Date.now(), data: d })); } catch {}
+}
+function defaults() { return { alltime_pb: 0, daily_pb: {}, streak: 0, last_seed_played: 0, plays: 0, mute: false, mutators_unlocked: [] }; }
+const SAVE = loadSave();
+
+/* ============================================================
+ * RNG (mulberry32 — deterministic)
+ * ============================================================ */
+function mulberry32(seed) {
+  let s = (seed | 0) >>> 0;
+  return function() {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffle(arr, rng) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ============================================================
+ * DAILY SEED
+ * ============================================================ */
+function getDailySeed(d = new Date()) {
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+function fmtSeedDate(seed) {
+  const y = Math.floor(seed / 10000), m = Math.floor((seed / 100) % 100), d = seed % 100;
+  return y + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+}
+const TODAY_SEED = getDailySeed();
+
+/* ============================================================
+ * MUTATORS (5 v1.0)
+ * ============================================================ */
+const MUTATORS = {
+  'frozen':    { name: 'FROZEN FLIPPERS', icon: '❄', desc: 'Slower flipper return — more skill window' },
+  'multiball': { name: 'MULTIBALL',       icon: '◉◉',desc: '2 balls at table start' },
+  'hurryup':   { name: 'HURRY UP',        icon: '⏱', desc: '60-second table timer' },
+  'doubleb':   { name: 'DOUBLE BUMPERS',  icon: '⊙⊙',desc: '2× bumper count, more chaos' },
+  'extra':     { name: 'EXTRA TARGET',    icon: '✚', desc: '+1 lit target worth 5× score' },
+};
+const MUTATOR_POOL = Object.keys(MUTATORS);
+function getMutatorOfDay(seed) {
+  const r = mulberry32(seed);
+  return MUTATOR_POOL[Math.floor(r() * MUTATOR_POOL.length)];
+}
+function getMutatorPickOptions(seed, runIndex, taken) {
+  const r = mulberry32(seed * 31 + runIndex * 7);
+  const pool = MUTATOR_POOL.filter(m => !taken.includes(m));
+  if (pool.length <= 3) return pool;
+  return shuffle(pool, r).slice(0, 3);
+}
+
+/* ============================================================
+ * AUDIO (WebAudio synth)
+ * ============================================================ */
+let actx = null, masterGain = null;
+function audioInit() {
+  if (actx) return;
+  try {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = actx.createGain();
+    masterGain.gain.value = SAVE.mute ? 0 : 0.7;
+    masterGain.connect(actx.destination);
+    musicStart();
+  } catch {}
+}
+function setMute(m) {
+  SAVE.mute = m;
+  if (masterGain) masterGain.gain.value = m ? 0 : 0.7;
+  document.getElementById('mute-btn').textContent = m ? '🔇' : '🔊';
+  saveNow(SAVE);
+}
+function tone(freq, dur, type='square', vol=0.12, attack=0.005) {
+  if (!actx || SAVE.mute) return;
+  const o = actx.createOscillator(); o.type = type; o.frequency.value = freq;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0, actx.currentTime);
+  g.gain.linearRampToValueAtTime(vol, actx.currentTime + attack);
+  g.gain.linearRampToValueAtTime(0, actx.currentTime + dur);
+  o.connect(g); g.connect(masterGain);
+  o.start(); o.stop(actx.currentTime + dur + 0.05);
+}
+function chord(freqs, dur, type='sine', vol=0.10) { freqs.forEach(f => tone(f, dur, type, vol/freqs.length*1.5)); }
+const sfx = {
+  chime:    () => chord([440, 659.25], 0.2, 'sine', 0.16),
+  drop:     () => tone(523.25, 0.10, 'square', 0.10),
+  spawn:    () => tone(523.25, 0.08, 'sine', 0.08),
+  flipper:  () => tone(329.63, 0.06, 'square', 0.10),
+  bumper:   (chain) => tone(523.25 * Math.pow(2, Math.min(chain,30)*0.4/12), 0.04, 'square', 0.10),
+  target:   () => chord([659.25, 987.77], 0.10, 'sine', 0.14),
+  combo:    (n) => tone(587.33 * Math.pow(2, Math.min(n,30)*0.3/12), 0.06, 'square', 0.08),
+  save:     () => { [698.46,880,1046.5].forEach((f,i)=>setTimeout(()=>tone(f,0.10,'square',0.12),i*60)); },
+  drain:    () => { tone(261.63,0.18,'sine',0.10); setTimeout(()=>tone(196,0.18,'sine',0.10),60); },
+  modeIn:   () => { for (let i=0;i<6;i++) setTimeout(()=>tone(523.25+i*100,0.08,'sawtooth',0.08),i*40); },
+  modeOut:  () => { tone(1046.5,0.10,'sawtooth',0.08); setTimeout(()=>tone(523.25,0.10,'sawtooth',0.08),100); },
+  hype50:   () => { for (let i=0;i<10;i++) setTimeout(()=>tone(523.25+i*120,0.10,'sawtooth',0.10),i*50); },
+  pickOpen: () => chord([440, 659.25], 0.25, 'sine', 0.14),
+  pickCommit: () => { [659.25,987.77,1318.5].forEach((f,i)=>setTimeout(()=>tone(f,0.10,'sine',0.14),i*70)); },
+  tableEnd: () => { [440,392,349.23,329.63].forEach((f,i)=>setTimeout(()=>tone(f,0.12,'sine',0.10),i*80)); },
+  runEnd:   () => { [261.63,329.63,392,523.25].forEach((f,i)=>setTimeout(()=>tone(f,0.18,'sine',0.12),i*120)); },
+  nearMiss: () => { tone(349.23,0.10,'square',0.08); setTimeout(()=>tone(369.99,0.10,'square',0.08),60); },
+  load:     () => chord([523.25, 783.99], 0.15, 'sine', 0.10),
+  uiPress:  () => tone(659.25, 0.05, 'sine', 0.08),
+};
+let musicNodes = null;
+function musicStart() {
+  if (!actx || musicNodes) return;
+  musicNodes = [];
+  [110, 164.81, 220].forEach((f, i) => {
+    const o = actx.createOscillator(); o.type = i===2?'sawtooth':'sine'; o.frequency.value = f;
+    const g = actx.createGain(); g.gain.value = 0.012;
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600 + i*100;
+    const lfo = actx.createOscillator(); lfo.frequency.value = 0.1; const lfoG = actx.createGain(); lfoG.gain.value = 200;
+    lfo.connect(lfoG); lfoG.connect(lp.frequency);
+    o.connect(lp); lp.connect(g); g.connect(masterGain);
+    o.start(); lfo.start();
+    musicNodes.push(o, lfo);
+  });
+}
+
+/* ============================================================
+ * STATE
+ * ============================================================ */
+const W = 480, H = 800;
+const PLAYFIELD_BOTTOM = H - 90;
+const FLIPPER_LEN = 105;     // 22% of 480
+const FLIPPER_THICK = 6;
+const FLIPPER_REST_ANGLE = 0.42;   // ~24° pointing-up-and-out
+const FLIPPER_ACTIVE_ANGLE = -0.42;
+const FLIPPER_RETURN_DEFAULT_MS = 200;
+const BALL_SAVER_MS = 7000;
+const TABLE_TIMER_DEFAULT = 0; // 0 = no timer
+const TABLE_TIMER_HURRYUP = 60000;
+const SPAWN_X = W * 0.92, SPAWN_Y = 80;
+
+const flipperL = {
+  pivot: { x: W * 0.30, y: PLAYFIELD_BOTTOM - 10 },
+  side: 'L',
+  angle: FLIPPER_REST_ANGLE, // signed
+  restAngle: FLIPPER_REST_ANGLE,
+  activeAngle: FLIPPER_ACTIVE_ANGLE,
+  pressed: false,
+  pressedAtMs: 0,
+  releasedAtMs: 0,
+};
+const flipperR = {
+  pivot: { x: W * 0.70, y: PLAYFIELD_BOTTOM - 10 },
+  side: 'R',
+  angle: -FLIPPER_REST_ANGLE,
+  restAngle: -FLIPPER_REST_ANGLE,
+  activeAngle: -FLIPPER_ACTIVE_ANGLE,
+  pressed: false,
+  pressedAtMs: 0,
+  releasedAtMs: 0,
+};
+
+let stateRun = null;
+function freshRun() {
+  return {
+    runStartMs: Date.now(),
+    seed: TODAY_SEED,
+    runIndex: 0,             // 0 = no table started yet
+    tableIndex: 0,           // 1-based
+    tableScore: 0,
+    runScore: 0,
+    maxChain: 0,
+    cascadeCount: 0,
+    mutatorsActive: [],      // mutator-of-day starts here
+    mutatorsTaken: [],       // includes mutator-of-day + each pick
+    drainsTotal: 0,
+    flow: 'TABLE_PLAYING',   // TABLE_PLAYING, TABLE_END, MUTATOR_PICK, RUN_END
+    over: false,
+    mutOptions: null,
+    pendingTableEndAt: 0,
+  };
+}
+let stateTable = null;
+function freshTable(seed, runIndex, mutatorsActive) {
+  // generate table layout deterministically
+  const r = mulberry32(seed * 1000 + runIndex);
+  const numBumpers = 5 + Math.floor(r() * 3); // 5-7
+  const numTargets = 3 + Math.floor(r() * 3); // 3-5
+  const bumpers = [];
+  for (let i = 0; i < numBumpers; i++) {
+    bumpers.push({
+      x: 60 + r() * (W - 120),
+      y: 200 + r() * (PLAYFIELD_BOTTOM - 350),
+      r: 16,
+      hitFlash: 0,
+      hitId: 0,
+      ringExpand: 0,
+      color: ['#FF2F92','#00E5FF','#FFE53D','#36F5A4'][Math.floor(r()*4)]
+    });
+  }
+  // mutator: doubleb -> 2x bumpers
+  if (mutatorsActive.includes('doubleb')) {
+    const extra = numBumpers;
+    for (let i = 0; i < extra; i++) {
+      bumpers.push({
+        x: 60 + r() * (W - 120),
+        y: 200 + r() * (PLAYFIELD_BOTTOM - 350),
+        r: 14,
+        hitFlash: 0,
+        hitId: 0,
+        ringExpand: 0,
+        color: ['#FF2F92','#00E5FF','#FFE53D','#36F5A4'][Math.floor(r()*4)]
+      });
+    }
+  }
+  const targets = [];
+  const targetYBase = 360;
+  let extraTargetCount = mutatorsActive.includes('extra') ? 1 : 0;
+  const totalTargets = numTargets + extraTargetCount;
+  for (let i = 0; i < totalTargets; i++) {
+    const tx = 60 + (i * (W - 120) / Math.max(1, totalTargets - 1));
+    targets.push({
+      x: tx, y: targetYBase + (i % 2) * 30,
+      w: 28, h: 18,
+      lit: r() > 0.5,
+      bonus: i >= numTargets ? 5 : 1, // mutator extra-target = 5x
+      hitFlash: 0,
+    });
+  }
+  const flipperReturnMs = mutatorsActive.includes('frozen') ? 400 : FLIPPER_RETURN_DEFAULT_MS;
+  const startBalls = mutatorsActive.includes('multiball') ? 2 : 1;
+  const tableTimerMs = mutatorsActive.includes('hurryup') ? TABLE_TIMER_HURRYUP : TABLE_TIMER_DEFAULT;
+
+  return {
+    startMs: Date.now(),
+    bumpers,
+    targets,
+    flipperReturnMs,
+    startBalls,
+    tableTimerMs,
+    timerRemainingMs: tableTimerMs,
+    balls: [],
+    particles: [],
+    popups: [],
+    ballsSpawned: 0,
+    ballsThisTableMax: 3, // 3 per table
+    chainCount: 0,
+    chainColor: null,
+    combo: 1,
+    ballSaverUntil: 0,
+    hypeFlashUntil: 0,
+    aberrationUntil: 0,
+    sharePromptUntil: 0,
+    activeMode: null, // 'multiball', 'hurryup', etc
+    score: 0,
+    chainsBroken: 0,
+    drains: 0,
+    over: false,
+  };
+}
+window.state = { run: null, table: null }; // exposed for harness
+
+/* ============================================================
+ * BALL spawning + auto-launch
+ * ============================================================ */
+function spawnBall(autoLaunch=true) {
+  const t = stateTable;
+  const ball = {
+    x: SPAWN_X, y: SPAWN_Y,
+    vx: 0, vy: 0,
+    r: 8,
+    color: '#FFFFFF',
+    pegsHit: 0,
+    chain: 0,
+    chainColor: null,
+    settled: false,
+    spawnedAt: Date.now(),
+    isLaunching: true,
+  };
+  t.balls.push(ball);
+  t.ballsSpawned++;
+  if (autoLaunch) {
+    // Trajectory: angle ~65° from horizontal (up-and-left from top-right shooter), speed ~6
+    // Goal: arc must intersect flipper sweep within 1 physics second
+    ball.vx = -3.0;
+    ball.vy = -1.5;
+  }
+  sfx.spawn();
+  setTimeout(() => sfx.drop(), 60);
+  emit('ball_launch', { ball_index_in_table: t.ballsSpawned, launch_power: 0.7 });
+}
+
+/* ============================================================
+ * TABLE flow
+ * ============================================================ */
+function startNewTable() {
+  const r = stateRun;
+  r.tableIndex++;
+  stateTable = freshTable(r.seed, r.tableIndex, r.mutatorsActive);
+  window.state.table = stateTable;
+  emit('table_start', { table_index_in_run: r.tableIndex, mutators_active: r.mutatorsActive.slice(), daily_seed: r.seed });
+  r.flow = 'TABLE_PLAYING';
+  // spawn starting balls (per multiball mutator)
+  for (let i = 0; i < stateTable.startBalls; i++) {
+    setTimeout(() => spawnBall(true), i * 250);
+  }
+  stateTable.ballSaverUntil = Date.now() + BALL_SAVER_MS;
+  showBallSaver();
+  if (stateTable.tableTimerMs > 0) {
+    enterMode('hurryup');
+  }
+  updateMutatorStack();
+  updateBallsRow();
+}
+
+function endTable() {
+  if (stateTable.over) return;
+  stateTable.over = true;
+  const t = stateTable, r = stateRun;
+  r.tableScore = t.score;
+  r.runScore += t.score;
+  if (t.chainCount > r.maxChain) r.maxChain = t.chainCount;
+  emit('table_end', { table_score: t.score, table_duration_ms: Date.now() - t.startMs, max_chain: r.maxChain, balls_used: t.ballsSpawned });
+  sfx.tableEnd();
+  // Check run end conditions
+  if (r.tableIndex >= 5 || r.drainsTotal >= 3) {
+    setTimeout(() => endRun(), 800);
+  } else {
+    setTimeout(() => showMutatorPick(), 1000);
+  }
+}
+
+function endRun() {
+  const r = stateRun;
+  r.flow = 'RUN_END';
+  r.over = true;
+  emit('run_end', {
+    final_run_score: r.runScore,
+    tables_played: r.tableIndex,
+    mutators_collected: r.mutatorsTaken.slice(),
+    personal_best_run: r.runScore > (SAVE.alltime_pb || 0),
+    daily_personal_best: r.runScore > (SAVE.daily_pb[r.seed] || 0)
+  });
+  let dailyPbBeat = false, alltimePbBeat = false;
+  if (r.runScore > (SAVE.daily_pb[r.seed] || 0)) {
+    SAVE.daily_pb[r.seed] = r.runScore;
+    dailyPbBeat = true;
+  }
+  if (r.runScore > (SAVE.alltime_pb || 0)) {
+    SAVE.alltime_pb = r.runScore;
+    alltimePbBeat = true;
+  }
+  // Streak: if last_seed_played = yesterday or today (counting today as continuation), increment
+  const todayD = TODAY_SEED;
+  if (SAVE.last_seed_played === todayD - 1 || SAVE.last_seed_played === todayD) {
+    if (SAVE.last_seed_played !== todayD) SAVE.streak = (SAVE.streak || 0) + 1;
+  } else {
+    SAVE.streak = 1;
+  }
+  SAVE.last_seed_played = todayD;
+  SAVE.plays = (SAVE.plays || 0) + 1;
+  // Add picked mutators to unlocked
+  for (const m of r.mutatorsTaken) {
+    if (!SAVE.mutators_unlocked.includes(m)) SAVE.mutators_unlocked.push(m);
+  }
+  saveNow(SAVE);
+  // Render summary
+  document.getElementById('rs-score').textContent = String(r.runScore).padStart(6, '0');
+  document.getElementById('rs-tables').textContent = r.tableIndex;
+  document.getElementById('rs-chain').textContent = r.maxChain;
+  document.getElementById('rs-muts').textContent = r.mutatorsTaken.length;
+  document.getElementById('rs-daily-pb-line').style.display = dailyPbBeat ? 'block' : 'none';
+  document.getElementById('rs-alltime-pb-line').style.display = alltimePbBeat ? 'block' : 'none';
+  document.getElementById('run-summary').classList.add('show');
+  setTimeout(() => sfx.runEnd(), 200);
+}
+
+/* ============================================================
+ * MUTATOR PICK UI
+ * ============================================================ */
+function showMutatorPick() {
+  const r = stateRun;
+  const opts = getMutatorPickOptions(r.seed, r.tableIndex, r.mutatorsTaken);
+  if (opts.length === 0) {
+    // No mutators left, just continue
+    setTimeout(() => startNewTable(), 200);
+    return;
+  }
+  r.mutOptions = opts;
+  r.flow = 'MUTATOR_PICK';
+  emit('mutator_pick_shown', { options: opts.slice() });
+  const cards = document.getElementById('mut-cards');
+  cards.innerHTML = '';
+  opts.forEach((id, idx) => {
+    const m = MUTATORS[id];
+    const card = document.createElement('button');
+    card.className = 'mut-card';
+    card.setAttribute('data-mut', id);
+    card.innerHTML = `<div class="icon">${m.icon}</div><div class="name">${m.name}</div><div class="desc">${m.desc}</div>`;
+    card.addEventListener('click', () => pickMutator(id, idx));
+    card.addEventListener('touchend', e => { e.preventDefault(); pickMutator(id, idx); });
+    cards.appendChild(card);
+  });
+  document.getElementById('mut-pick').classList.add('show');
+  sfx.pickOpen();
+}
+function pickMutator(id, idx) {
+  const r = stateRun;
+  emit('mutator_picked', { picked_id: id, options_shown: r.mutOptions, pick_index: idx });
+  r.mutatorsActive.push(id);
+  r.mutatorsTaken.push(id);
+  document.getElementById('mut-pick').classList.remove('show');
+  sfx.pickCommit();
+  setTimeout(() => startNewTable(), 400);
+}
+
+/* ============================================================
+ * RUN flow
+ * ============================================================ */
+function startRun() {
+  stateRun = freshRun();
+  window.state.run = stateRun;
+  // Mutator-of-day applies from table 1
+  const mod = getMutatorOfDay(TODAY_SEED);
+  stateRun.mutatorsActive = [mod];
+  stateRun.mutatorsTaken = [mod];
+  emit('run_start', { daily_seed: TODAY_SEED, mutators_applied: stateRun.mutatorsActive.slice() });
+  document.getElementById('run-summary').classList.remove('show');
+  document.getElementById('mut-pick').classList.remove('show');
+  startNewTable();
+}
+
+/* ============================================================
+ * PHYSICS (fixed timestep)
+ * ============================================================ */
+const FIXED_DT = 1000 / 60;
+let accumulator = 0;
+let lastFrame = performance.now();
+
+function flipperTipPos(f) {
+  return { x: f.pivot.x + Math.cos(f.angle) * FLIPPER_LEN * (f.side === 'L' ? 1 : -1),
+           y: f.pivot.y - Math.sin(f.angle) * FLIPPER_LEN };
+}
+function flipperEndpoints(f) {
+  // segment from pivot to tip; for collision use this segment
+  const tip = flipperTipPos(f);
+  return { a: { x: f.pivot.x, y: f.pivot.y }, b: tip };
+}
+function updateFlipper(f, dt, returnMs) {
+  // Move toward target angle with snap on press, easing on release
+  const targetActive = f.activeAngle, targetRest = f.restAngle;
+  if (f.pressed) {
+    // Snap quickly to active (80ms total)
+    const t = Math.min(1, (Date.now() - f.pressedAtMs) / 80);
+    f.angle = f.restAngle + (f.activeAngle - f.restAngle) * t;
+  } else {
+    // Ease back to rest over returnMs
+    const t = Math.min(1, (Date.now() - f.releasedAtMs) / returnMs);
+    f.angle = f.activeAngle + (f.restAngle - f.activeAngle) * t;
+  }
+}
+function flipperAngularVelocity(f, returnMs) {
+  // approximate: while pressed and within first 80ms, high angular velocity; else 0
+  if (f.pressed) {
+    const elapsed = Date.now() - f.pressedAtMs;
+    if (elapsed < 80) {
+      const totalAngle = Math.abs(f.activeAngle - f.restAngle);
+      return totalAngle / 0.080; // rad/s
+    }
+  } else {
+    const elapsed = Date.now() - f.releasedAtMs;
+    if (elapsed < returnMs) {
+      const totalAngle = Math.abs(f.activeAngle - f.restAngle);
+      return -(totalAngle / (returnMs / 1000));
+    }
+  }
+  return 0;
+}
+
+// Closest point on segment AB to point P
+function closestPointOnSegment(A, B, P) {
+  const ABx = B.x - A.x, ABy = B.y - A.y;
+  const APx = P.x - A.x, APy = P.y - A.y;
+  const len2 = ABx * ABx + ABy * ABy;
+  if (len2 < 1e-6) return { x: A.x, y: A.y, t: 0 };
+  let t = (APx * ABx + APy * ABy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return { x: A.x + ABx * t, y: A.y + ABy * t, t };
+}
+
+function tick(dt) {
+  if (!stateTable || stateTable.over) return;
+  const t = stateTable, r = stateRun;
+  // Update flippers
+  updateFlipper(flipperL, dt, t.flipperReturnMs);
+  updateFlipper(flipperR, dt, t.flipperReturnMs);
+  // Hurryup timer
+  if (t.tableTimerMs > 0 && t.activeMode === 'hurryup') {
+    t.timerRemainingMs -= dt;
+    if (t.timerRemainingMs <= 0) {
+      // table ends
+      for (const b of t.balls) b.settled = true;
+      endTable();
+      return;
+    }
+  }
+  // Update balls
+  for (const b of t.balls) {
+    if (b.settled) continue;
+    // Gravity
+    b.vy += 0.42 * (dt / 16.67);
+    // Drag
+    b.vx *= 0.998;
+    b.vy *= 0.998;
+    // Cap velocity
+    const maxV = 14;
+    const speed = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+    if (speed > maxV) { b.vx = (b.vx / speed) * maxV; b.vy = (b.vy / speed) * maxV; }
+    // Integrate
+    b.x += b.vx * (dt / 16.67);
+    b.y += b.vy * (dt / 16.67);
+    if (b.y > 100) b.isLaunching = false; // launch phase done
+    // Wall collisions
+    if (b.x < b.r) { b.x = b.r; b.vx = -b.vx * 0.7; }
+    if (b.x > W - b.r) { b.x = W - b.r; b.vx = -b.vx * 0.7; }
+    if (b.y < b.r) { b.y = b.r; b.vy = -b.vy * 0.7; }
+    // Drain check
+    const drainLine = PLAYFIELD_BOTTOM + 10;
+    const drainXLeft = flipperL.pivot.x + FLIPPER_LEN * 0.3;
+    const drainXRight = flipperR.pivot.x - FLIPPER_LEN * 0.3;
+    if (b.y > drainLine) {
+      // Drained
+      const ballSaverActive = Date.now() < t.ballSaverUntil;
+      if (ballSaverActive) {
+        emit('ball_drained', { ball_index: t.ballsSpawned, prevented_by_ballsaver: true });
+        sfx.save();
+        b.x = SPAWN_X; b.y = SPAWN_Y; b.vx = -3.0; b.vy = -1.5;
+        b.spawnedAt = Date.now(); b.isLaunching = true;
+      } else {
+        emit('ball_drained', { ball_index: t.ballsSpawned, prevented_by_ballsaver: false });
+        b.settled = true;
+        t.drains++;
+        r.drainsTotal++;
+        sfx.drain();
+        for (let k=0; k<8; k++) spawnParticle(b.x, drainLine, '#FF3B30');
+        updateBallsRow();
+        // Spawn next ball if any remaining
+        if (t.ballsSpawned < t.ballsThisTableMax && r.drainsTotal < 3) {
+          setTimeout(() => { if (!t.over) spawnBall(true); }, 600);
+        } else {
+          // Check if all balls are gone
+          if (t.balls.every(bb => bb.settled)) {
+            setTimeout(() => endTable(), 400);
+          }
+        }
+      }
+    }
+    // Bumper collisions
+    for (const bm of t.bumpers) {
+      const dx = b.x - bm.x, dy = b.y - bm.y;
+      const d2 = dx*dx + dy*dy;
+      const r2 = (b.r + bm.r) * (b.r + bm.r);
+      if (d2 < r2 && d2 > 0) {
+        const d = Math.sqrt(d2);
+        const nx = dx/d, ny = dy/d;
+        b.x = bm.x + nx * (b.r + bm.r);
+        b.y = bm.y + ny * (b.r + bm.r);
+        const vDotN = b.vx*nx + b.vy*ny;
+        if (vDotN < 0) {
+          b.vx -= 2 * vDotN * nx; b.vy -= 2 * vDotN * ny;
+          // bumper kick
+          const kick = 1.8;
+          b.vx += nx * kick; b.vy += ny * kick;
+          b.vx *= 0.85; b.vy *= 0.85;
+        }
+        if (Date.now() - bm.hitId > 80) {
+          bm.hitFlash = 80;
+          bm.ringExpand = 200;
+          bm.hitId = Date.now();
+          // Chain
+          if (bm.color === b.chainColor) {
+            b.chain++;
+          } else {
+            if (b.chain >= 9) emit('near_miss', { chain_length: b.chain });
+            b.chain = 1;
+            b.chainColor = bm.color;
+          }
+          if (b.chain > t.chainCount) t.chainCount = b.chain;
+          if (b.chain > r.maxChain) r.maxChain = b.chain;
+          t.combo = Math.min(50, Math.floor(Math.pow(1.5, b.chain)));
+          // Score
+          const scoreGain = 50 * t.combo * (r.mutatorsActive.includes('doubleb') ? 2 : 1);
+          t.score += scoreGain;
+          r.runScore = (r.runScore || 0); // tracked at table end
+          sfx.bumper(b.chain);
+          sfx.combo(b.chain);
+          updateCombo();
+          emit('bumper_hit', { bumper_id: t.bumpers.indexOf(bm), chain_count_so_far: b.chain });
+          if (b.chain >= 10 && b.chain < 25) emit('hype_chain', { chain_length: b.chain });
+          if (t.combo >= 25 && Date.now() > t.hypeFlashUntil + 1000) {
+            emit('hype_25x', { combo_multiplier: t.combo });
+          }
+          if (t.combo >= 50 && Date.now() > t.hypeFlashUntil + 1500) {
+            t.hypeFlashUntil = Date.now() + 200;
+            t.aberrationUntil = Date.now() + 200;
+            t.sharePromptUntil = Date.now() + 4000;
+            sfx.hype50();
+            emit('hype_50x', { combo_multiplier: t.combo });
+            showSharePrompt();
+          }
+          for (let k=0; k<14; k++) spawnParticle(bm.x, bm.y, bm.color);
+          updateScore();
+        }
+      }
+    }
+    // Target collisions (AABB)
+    for (const tg of t.targets) {
+      const closestX = Math.max(tg.x - tg.w/2, Math.min(b.x, tg.x + tg.w/2));
+      const closestY = Math.max(tg.y - tg.h/2, Math.min(b.y, tg.y + tg.h/2));
+      const dx = b.x - closestX, dy = b.y - closestY;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < b.r * b.r && d2 > 0) {
+        const d = Math.sqrt(d2);
+        const nx = dx/d, ny = dy/d;
+        b.x = closestX + nx * b.r;
+        b.y = closestY + ny * b.r;
+        const vDotN = b.vx*nx + b.vy*ny;
+        if (vDotN < 0) { b.vx -= 1.7 * vDotN * nx; b.vy -= 1.7 * vDotN * ny; }
+        if (tg.hitFlash <= 0) {
+          tg.hitFlash = 100;
+          if (!tg.lit) {
+            tg.lit = true;
+            const scoreGain = 250 * tg.bonus * t.combo;
+            t.score += scoreGain;
+            sfx.target();
+            t.popups.push({ x: tg.x, y: tg.y - 20, text: '+' + scoreGain, ts: Date.now(), life: 1000 });
+            emit('target_hit', { target_id: t.targets.indexOf(tg), score_delta: scoreGain, lit_state_change: true });
+            // All lit?
+            if (t.targets.every(tgt => tgt.lit)) {
+              // Mode trigger: multiball or hurryup
+              if (!t.activeMode && !r.mutatorsActive.includes('hurryup')) {
+                enterMode('multiball');
+              } else if (!t.activeMode) {
+                enterMode('hurryup');
+              }
+              // Reset all lit (they'll re-light over time)
+              setTimeout(() => { for (const x of t.targets) x.lit = false; }, 400);
+            }
+          } else {
+            // Already lit - small score
+            t.score += 20 * t.combo;
+            emit('target_hit', { target_id: t.targets.indexOf(tg), score_delta: 20 * t.combo, lit_state_change: false });
+          }
+          for (let k=0; k<8; k++) spawnParticle(tg.x, tg.y, '#FFE53D');
+          updateScore();
+        }
+      }
+    }
+    // Flipper collisions (segment-vs-circle with rotational kick)
+    for (const f of [flipperL, flipperR]) {
+      const seg = flipperEndpoints(f);
+      const cp = closestPointOnSegment(seg.a, seg.b, b);
+      const dx = b.x - cp.x, dy = b.y - cp.y;
+      const d2 = dx*dx + dy*dy;
+      const minDist = b.r + FLIPPER_THICK;
+      if (d2 < minDist * minDist && d2 > 0) {
+        const d = Math.sqrt(d2);
+        const nx = dx/d, ny = dy/d;
+        // Resolve overlap
+        b.x = cp.x + nx * minDist;
+        b.y = cp.y + ny * minDist;
+        // Compute contact point velocity from flipper rotation
+        const omega = flipperAngularVelocity(f, t.flipperReturnMs);
+        // Distance from pivot to contact point
+        const rx = cp.x - f.pivot.x;
+        const ry = cp.y - f.pivot.y;
+        // Contact velocity = omega × radius (perpendicular to radius)
+        const cvx = -omega * ry; // perpendicular
+        const cvy = omega * rx;
+        // Relative velocity
+        const rvx = b.vx - cvx;
+        const rvy = b.vy - cvy;
+        const vDotN = rvx*nx + rvy*ny;
+        if (vDotN < 0) {
+          // Reflect with restitution
+          const restitution = 0.85;
+          b.vx -= (1 + restitution) * vDotN * nx;
+          b.vy -= (1 + restitution) * vDotN * ny;
+          // Add a portion of contact velocity (kick force)
+          if (f.pressed && (Date.now() - f.pressedAtMs) < 80) {
+            // Strong kick during press
+            const kickScale = 0.7;
+            b.vx += cvx * kickScale;
+            b.vy += cvy * kickScale;
+            // Ensure minimum kick velocity
+            const minSpeed = 6.5;
+            const newSpeed = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+            if (newSpeed < minSpeed) {
+              b.vx = (b.vx / Math.max(0.01, newSpeed)) * minSpeed;
+              b.vy = (b.vy / Math.max(0.01, newSpeed)) * minSpeed;
+            }
+            // SFX
+            if (!f.lastKickAt || Date.now() - f.lastKickAt > 100) {
+              f.lastKickAt = Date.now();
+              sfx.flipper();
+            }
+          }
+        }
+      }
+    }
+  }
+  // Update particles
+  for (let i = t.particles.length - 1; i >= 0; i--) {
+    const p = t.particles[i];
+    p.life -= dt;
+    if (p.life <= 0) t.particles.splice(i, 1);
+    else { p.x += p.vx; p.y += p.vy; p.vy += 0.12; }
+  }
+  // Bumper hit-flash decay
+  for (const bm of t.bumpers) {
+    if (bm.hitFlash > 0) bm.hitFlash -= dt;
+    if (bm.ringExpand > 0) bm.ringExpand -= dt;
+  }
+  // Target hit-flash decay
+  for (const tg of t.targets) {
+    if (tg.hitFlash > 0) tg.hitFlash -= dt;
+  }
+  // Popup decay
+  for (let i = t.popups.length - 1; i >= 0; i--) {
+    if (Date.now() - t.popups[i].ts > t.popups[i].life) t.popups.splice(i, 1);
+  }
+}
+
+function spawnParticle(x, y, color) {
+  if (!stateTable || stateTable.particles.length > 200) return;
+  const ang = Math.random() * Math.PI * 2;
+  const sp = 2 + Math.random() * 3;
+  stateTable.particles.push({
+    x, y, vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp - 1,
+    color, life: 600
+  });
+}
+
+function enterMode(mode) {
+  if (!stateTable || stateTable.activeMode === mode) return;
+  stateTable.activeMode = mode;
+  emit('mode_enter', { mode_id: mode, triggered_by: 'all_targets_lit' });
+  sfx.modeIn();
+  showModeBanner(mode === 'multiball' ? 'MULTIBALL!' : 'HURRY UP!');
+  if (mode === 'multiball') {
+    // Spawn extra ball
+    setTimeout(() => spawnBall(true), 300);
+    setTimeout(() => exitMode(mode), 12000);
+  } else if (mode === 'hurryup') {
+    stateTable.timerRemainingMs = TABLE_TIMER_HURRYUP;
+  }
+}
+function exitMode(mode) {
+  if (!stateTable || stateTable.activeMode !== mode) return;
+  emit('mode_exit', { mode_id: mode, score_during_mode: 0 });
+  stateTable.activeMode = null;
+  sfx.modeOut();
+  hideModeBanner();
+}
+
+/* ============================================================
+ * RENDER
+ * ============================================================ */
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssW = window.innerWidth, cssH = window.innerHeight;
+  const targetRatio = W / H;
+  const screenRatio = cssW / cssH;
+  let cw, ch;
+  if (screenRatio > targetRatio) { ch = cssH; cw = ch * targetRatio; }
+  else { cw = cssW; ch = cw / targetRatio; }
+  canvas.style.width = cw + 'px';
+  canvas.style.height = ch + 'px';
+  canvas.style.position = 'absolute';
+  canvas.style.left = ((cssW - cw)/2) + 'px';
+  canvas.style.top = ((cssH - ch)/2) + 'px';
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', resize);
+
+function render() {
+  // BG
+  ctx.fillStyle = '#14141E';
+  ctx.fillRect(0,0,W,H);
+  const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W*0.7);
+  grad.addColorStop(0, 'rgba(255,47,146,0.06)');
+  grad.addColorStop(1, 'rgba(0,229,255,0.03)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+  if (!stateTable) return;
+  const t = stateTable, r = stateRun;
+  // Shooter lane indicator (right edge top)
+  ctx.fillStyle = 'rgba(255,229,61,0.10)';
+  ctx.fillRect(W - 24, 0, 24, 160);
+  ctx.fillStyle = 'rgba(255,229,61,0.5)';
+  ctx.fillRect(W - 22, 30, 2, 100);
+  // Bumpers
+  for (const bm of t.bumpers) {
+    ctx.save();
+    if (bm.ringExpand > 0) {
+      const rt = (200 - bm.ringExpand) / 200;
+      ctx.strokeStyle = bm.color + Math.floor((1 - rt) * 255).toString(16).padStart(2, '0');
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(bm.x, bm.y, bm.r + rt * 18, 0, Math.PI*2); ctx.stroke();
+    }
+    if (bm.hitFlash > 0) {
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = bm.color;
+      ctx.fillStyle = bm.color;
+    } else {
+      ctx.fillStyle = '#1F1F2E';
+    }
+    ctx.beginPath(); ctx.arc(bm.x, bm.y, bm.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = bm.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(bm.x, bm.y, bm.r - 1, 0, Math.PI*2); ctx.stroke();
+    // Inner pixel core
+    ctx.fillStyle = '#FFFFFF';
+    ctx.globalAlpha = bm.hitFlash > 0 ? 0.9 : 0.4;
+    ctx.fillRect(bm.x - 2, bm.y - 2, 4, 4);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  // Targets
+  for (const tg of t.targets) {
+    ctx.save();
+    if (tg.lit) {
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300);
+      ctx.shadowBlur = 8 + pulse * 6;
+      ctx.shadowColor = '#FFE53D';
+      ctx.fillStyle = '#FFE53D';
+      ctx.fillRect(tg.x - tg.w/2, tg.y - tg.h/2, tg.w, tg.h);
+      ctx.fillStyle = '#14141E';
+      ctx.font = '8px "Press Start 2P", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(tg.bonus > 1 ? tg.bonus + 'x' : '*', tg.x, tg.y + 3);
+    } else {
+      ctx.strokeStyle = '#C8C8DA';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(tg.x - tg.w/2, tg.y - tg.h/2, tg.w, tg.h);
+    }
+    if (tg.hitFlash > 0) {
+      ctx.fillStyle = 'rgba(255,229,61,' + (tg.hitFlash / 100) + ')';
+      ctx.fillRect(tg.x - tg.w/2 - 2, tg.y - tg.h/2 - 2, tg.w + 4, tg.h + 4);
+    }
+    ctx.restore();
+  }
+  // Particles
+  for (const p of t.particles) {
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = Math.max(0, p.life / 600);
+    ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+    ctx.globalAlpha = 1;
+  }
+  // Flippers
+  for (const f of [flipperL, flipperR]) {
+    const seg = flipperEndpoints(f);
+    ctx.save();
+    ctx.strokeStyle = f.side === 'L' ? '#FF2F92' : '#00E5FF';
+    ctx.shadowBlur = f.pressed ? 14 : 6;
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.lineWidth = FLIPPER_THICK * 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(seg.a.x, seg.a.y);
+    ctx.lineTo(seg.b.x, seg.b.y);
+    ctx.stroke();
+    // Pivot dot
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(seg.a.x, seg.a.y, 3, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  // Drain area (visual cue between flippers)
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,59,48,0.05)';
+  const drainXL = flipperL.pivot.x + FLIPPER_LEN * 0.4;
+  const drainXR = flipperR.pivot.x - FLIPPER_LEN * 0.4;
+  ctx.fillRect(drainXL, PLAYFIELD_BOTTOM - 10, drainXR - drainXL, 30);
+  ctx.restore();
+  // Balls
+  for (const b of t.balls) {
+    if (b.settled) continue;
+    ctx.save();
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = '#FFFFFF';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+    // Pixel inner core
+    ctx.fillStyle = '#C8C8DA';
+    ctx.fillRect(b.x - 2, b.y - 2, 4, 4);
+    ctx.restore();
+  }
+  // Popups
+  for (const pp of t.popups) {
+    const tt = (Date.now() - pp.ts) / pp.life;
+    ctx.fillStyle = '#FFE53D';
+    ctx.globalAlpha = Math.max(0, 1 - tt);
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(pp.text, pp.x, pp.y - tt * 50);
+    ctx.globalAlpha = 1;
+  }
+  // Hype flash
+  if (Date.now() < t.hypeFlashUntil) {
+    const tt = (t.hypeFlashUntil - Date.now()) / 200;
+    ctx.fillStyle = 'rgba(255,229,61,' + (tt * 0.4) + ')';
+    ctx.fillRect(0,0,W,H);
+  }
+  // Tap zones (subtle, visible during awaiting)
+  if (t.balls.length === 0 || t.balls.every(b => b.settled)) {
+    // No active balls; show ready state if not over
+    if (!t.over && r.flow === 'TABLE_PLAYING' && t.ballsSpawned < t.ballsThisTableMax) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,229,61,0.08)';
+      ctx.fillRect(W - 80, 80, 80, 60);
+      ctx.fillStyle = 'rgba(255,229,61,0.5)';
+      ctx.font = '8px "Press Start 2P", monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('NEXT BALL', W - 8, 110);
+      ctx.fillText('LOADING...', W - 8, 124);
+      ctx.restore();
+    }
+  }
+  // Tap zone hints (very subtle)
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,47,146,0.04)';
+  ctx.fillRect(0, PLAYFIELD_BOTTOM, W * 0.5, H - PLAYFIELD_BOTTOM);
+  ctx.fillStyle = 'rgba(0,229,255,0.04)';
+  ctx.fillRect(W * 0.5, PLAYFIELD_BOTTOM, W * 0.5, H - PLAYFIELD_BOTTOM);
+  ctx.fillStyle = 'rgba(200,200,218,0.3)';
+  ctx.font = '8px "Press Start 2P", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('TAP L', W * 0.25, PLAYFIELD_BOTTOM + 38);
+  ctx.fillText('TAP R', W * 0.75, PLAYFIELD_BOTTOM + 38);
+  ctx.restore();
+}
+
+/* ============================================================
+ * HUD
+ * ============================================================ */
+function updateScore() {
+  const total = (stateRun?.runScore || 0) + (stateTable?.score || 0);
+  document.getElementById('score').textContent = String(total).padStart(6, '0');
+}
+function updateBallsRow() {
+  const el = document.getElementById('balls-row');
+  if (!stateTable) { el.innerHTML = ''; return; }
+  el.innerHTML = '';
+  const max = stateTable.ballsThisTableMax;
+  for (let i = 0; i < max; i++) {
+    const d = document.createElement('div');
+    d.className = 'ball' + (i < stateTable.drains ? ' lost' : '');
+    el.appendChild(d);
+  }
+}
+function updateMutatorStack() {
+  const el = document.getElementById('mutator-stack');
+  if (!stateRun) { el.innerHTML = ''; return; }
+  el.innerHTML = '';
+  for (const id of stateRun.mutatorsActive) {
+    const d = document.createElement('div');
+    d.className = 'mut-icon';
+    d.textContent = MUTATORS[id].icon;
+    d.title = MUTATORS[id].name;
+    el.appendChild(d);
+  }
+}
+const comboEl = document.getElementById('combo');
+let comboTO;
+function updateCombo() {
+  if (!stateTable) return;
+  comboEl.textContent = stateTable.combo + 'x';
+  comboEl.classList.add('show');
+  comboEl.classList.toggle('huge', stateTable.combo >= 25);
+  clearTimeout(comboTO);
+  comboTO = setTimeout(() => comboEl.classList.remove('show'), 1500);
+}
+function showModeBanner(text) {
+  const el = document.getElementById('mode-banner');
+  el.textContent = text;
+  el.classList.add('show');
+  setTimeout(() => hideModeBanner(), 2000);
+}
+function hideModeBanner() { document.getElementById('mode-banner').classList.remove('show'); }
+function showBallSaver() {
+  const el = document.getElementById('ball-saver');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), BALL_SAVER_MS);
+}
+function showSharePrompt() {
+  const el = document.getElementById('share-prompt');
+  el.classList.add('show');
+  emit('screenshot_prompt_shown', { event_trigger: 'hype_50x' });
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+document.getElementById('share-prompt').addEventListener('click', shareScore);
+document.getElementById('rs-share').addEventListener('click', shareScore);
+async function shareScore() {
+  emit('screenshot_taken', { channel: 'web-share' });
+  const text = `TILT ${fmtSeedDate(TODAY_SEED)} — ${stateRun?.runScore || stateTable?.score || 0} (max chain: ${stateRun?.maxChain || 0})`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'TILT', text, url: location.href });
+      emit('share_completed', { channel: 'navigator-share' });
+    } catch {}
+  } else if (navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text + ' ' + location.href);
+      emit('share_completed', { channel: 'clipboard' });
+    } catch {}
+  }
+}
+
+/* ============================================================
+ * INPUT — flipper L = left half tap, flipper R = right half tap
+ * ============================================================ */
+function pressFlipper(side) {
+  if (!stateTable || stateTable.over || !stateRun || stateRun.flow !== 'TABLE_PLAYING') return;
+  const f = side === 'L' ? flipperL : flipperR;
+  if (!f.pressed) {
+    f.pressed = true;
+    f.pressedAtMs = Date.now();
+    emit('flipper_press', { side, ts_relative_to_table_start_ms: Date.now() - stateTable.startMs });
+    sfx.flipper();
+  }
+}
+function releaseFlipper(side) {
+  const f = side === 'L' ? flipperL : flipperR;
+  if (f.pressed) {
+    f.pressed = false;
+    f.releasedAtMs = Date.now();
+  }
+}
+const activeTouches = new Map(); // touch.identifier -> side
+function getCanvasRect() { return canvas.getBoundingClientRect(); }
+function sideFromClient(clientX) {
+  const r = getCanvasRect();
+  const xn = (clientX - r.left) / r.width;
+  return xn < 0.5 ? 'L' : 'R';
+}
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  audioInit();
+  for (const t of e.changedTouches) {
+    const side = sideFromClient(t.clientX);
+    activeTouches.set(t.identifier, side);
+    pressFlipper(side);
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const side = activeTouches.get(t.identifier);
+    if (side) {
+      activeTouches.delete(t.identifier);
+      // Only release if no other touch is on that side
+      let stillPressed = false;
+      for (const s of activeTouches.values()) if (s === side) stillPressed = true;
+      if (!stillPressed) releaseFlipper(side);
+    }
+  }
+}, { passive: false });
+canvas.addEventListener('touchcancel', e => {
+  for (const t of e.changedTouches) {
+    const side = activeTouches.get(t.identifier);
+    if (side) { activeTouches.delete(t.identifier); releaseFlipper(side); }
+  }
+});
+// Mouse fallback (desktop)
+canvas.addEventListener('mousedown', e => {
+  audioInit();
+  pressFlipper(sideFromClient(e.clientX));
+});
+canvas.addEventListener('mouseup', e => releaseFlipper(sideFromClient(e.clientX)));
+canvas.addEventListener('mouseleave', () => { releaseFlipper('L'); releaseFlipper('R'); });
+// Keyboard fallback
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  audioInit();
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') pressFlipper('L');
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') pressFlipper('R');
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') releaseFlipper('L');
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') releaseFlipper('R');
+});
+
+/* ============================================================
+ * UI buttons + suspend/resume
+ * ============================================================ */
+document.getElementById('mute-btn').addEventListener('click', () => {
+  setMute(!SAVE.mute);
+});
+if (SAVE.mute) document.getElementById('mute-btn').textContent = '🔇';
+document.getElementById('rs-restart').addEventListener('click', () => { sfx.uiPress(); startRun(); });
+
+let lastVis = Date.now();
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    emit('app_suspend', { session_partial_ms: Date.now() - lastVis });
+  } else {
+    emit('app_resume', { gap_ms: Date.now() - lastVis });
+    lastVis = Date.now();
+  }
+});
+window.addEventListener('beforeunload', () => {
+  emit('app_close', { session_duration_ms: Date.now() - SESSION_START });
+});
+
+/* ============================================================
+ * MAIN LOOP
+ * ============================================================ */
+function loop() {
+  const now = performance.now();
+  let dt = now - lastFrame;
+  if (dt > 100) dt = 100; // dt clamp
+  lastFrame = now;
+  accumulator += dt;
+  while (accumulator >= FIXED_DT) {
+    tick(FIXED_DT);
+    accumulator -= FIXED_DT;
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+ * BOOT
+ * ============================================================ */
+function boot() {
+  resize();
+  // Daily seed display
+  const seedStr = fmtSeedDate(TODAY_SEED);
+  const mod = getMutatorOfDay(TODAY_SEED);
+  document.getElementById('splash-seed-date').textContent = seedStr;
+  document.getElementById('splash-seed-mut').textContent = MUTATORS[mod].name;
+  document.getElementById('seed-date').textContent = seedStr;
+  document.getElementById('seed-mut').textContent = MUTATORS[mod].name;
+  emit('daily_seed_revealed', { seed_date: seedStr, mutator_of_day: mod });
+  emit('app_open', {});
+  // Splash dismiss
+  let started = false;
+  function dismiss() {
+    if (started) return; started = true;
+    audioInit();
+    sfx.chime();
+    document.getElementById('splash').classList.add('fade');
+    setTimeout(() => { const s = document.getElementById('splash'); if (s) s.remove(); }, 700);
+    startRun();
+  }
+  document.getElementById('splash').addEventListener('click', dismiss);
+  document.getElementById('splash').addEventListener('touchstart', e => { e.preventDefault(); dismiss(); }, { passive: false });
+  document.addEventListener('keydown', e => { if (!started && (e.key === ' ' || e.key === 'Enter')) dismiss(); });
+  requestAnimationFrame(loop);
+}
+
+// Harness hooks
+window.fireBall = function(side = 'L') {
+  if (stateRun?.flow === 'TABLE_PLAYING') {
+    pressFlipper(side);
+    setTimeout(() => releaseFlipper(side), 80);
+  }
+};
+window.dismissSplash = function() {
+  const s = document.getElementById('splash'); if (s && !s.classList.contains('fade')) s.click();
+};
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+</script>
+</body>
+</html>
